@@ -75,7 +75,4 @@ app.get('/', (req, res) => {
   res.send('Allo Cleaning REST API is running.');
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Allo Cleaning Backend Server started on port ${PORT}`);
-});
+module.exports = app;
