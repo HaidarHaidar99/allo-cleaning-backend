@@ -1,0 +1,10 @@
+[
+  {
+    "id": "18kcqje7hkr",
+    "fullName": "Default Super Admin",
+    "email": "admin@allocleaning.com",
+    "passwordHash": "$2a$10$Fe2z1Vf7rtRCjRZ7RZP3E.OJDrEnDE0Rwi/hwvGb/vTefCn5U5zyi",
+    "role": "Super Admin",
+    "createdAt": "2026-06-24T12:17:34.278Z"
+  }
+]

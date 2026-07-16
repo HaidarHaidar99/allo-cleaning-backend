@@ -1,0 +1,29 @@
+[
+  {
+    "id": "lchrouzh3p",
+    "name": "Deep Cleaning",
+    "category": "Home Cleaning",
+    "description": "Complete deep cleaning service for all rooms, including kitchen sanitization, bathroom scrubbing, dusting, vacuuming, and floor mopping.",
+    "price": 150,
+    "imageUrl": "/uploads/logo.jpg",
+    "createdAt": "2026-06-24T12:17:34.140Z"
+  },
+  {
+    "id": "82in1xzr9li",
+    "name": "Office Cleaning",
+    "category": "Office Cleaning",
+    "description": "Keep your workspace clean and professional. Dusting desks, emptying trash, vacuuming carpets, and sanitizing common areas.",
+    "price": 120,
+    "imageUrl": "/uploads/logo.jpg",
+    "createdAt": "2026-06-24T12:17:34.142Z"
+  },
+  {
+    "id": "s7ifhdbs0r",
+    "name": "Window Washing",
+    "category": "Specialty Cleaning",
+    "description": "Streak-free window washing for residential and commercial buildings. Includes interior and exterior glass cleaning.",
+    "price": 75,
+    "imageUrl": "/uploads/logo.jpg",
+    "createdAt": "2026-06-24T12:17:34.142Z"
+  }
+]
