@@ -36,6 +36,8 @@ const authRouter = require('./routes/auth');
 const servicesRouter = require('./routes/services');
 const formsRouter = require('./routes/forms');
 const adminsRouter = require('./routes/admins');
+const settingsRouter = require('./routes/settings');
+
 
 // Seed default admin account and services
 if (authRouter.seedDefaultAdmin) {
@@ -51,6 +53,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/services', servicesRouter);
 app.use('/api/forms', formsRouter);
 app.use('/api/admins', adminsRouter);
+app.use('/api/settings', settingsRouter);
+
 
 // Admin Dashboard stats endpoint
 app.get('/api/stats', verifyToken, async (req, res) => {
@@ -74,5 +78,11 @@ app.get('/api/stats', verifyToken, async (req, res) => {
 app.get('/', (req, res) => {
   res.send('Allo Cleaning REST API is running.');
 });
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Allo Cleaning Backend Server started on port ${PORT}`);
+  });
+}
 
 module.exports = app;
