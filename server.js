@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 require('dotenv').config();
 
 const { db } = require('./config/firebase');
@@ -84,6 +85,15 @@ app.get('/api/stats', verifyToken, async (req, res) => {
 // Root check endpoint
 app.get('/', (req, res) => {
   res.send('Allo Cleaning REST API is running.');
+});
+
+// Global error handler to ensure JSON responses
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', err);
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ message: `Upload error: ${err.message}` });
+  }
+  res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
 
 if (require.main === module) {
