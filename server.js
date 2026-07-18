@@ -23,16 +23,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Create uploads directory if it does not exist
-// Use /tmp for serverless environments (like Vercel) to avoid EROFS errors
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
-const uploadsDir = isServerless ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
-
+// Create uploads directory if it does not exist (for local dev static files only)
+const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Serve uploaded images statically
+// Serve uploaded images statically (legacy/local dev fallback)
 app.use('/uploads', express.static(uploadsDir));
 
 // Import routers

@@ -24,9 +24,11 @@ if (hasEnvConfig || hasFileConfig) {
         privateKey: privateKey,
       });
     }
+    const projectId = hasFileConfig ? require(serviceAccountPath).project_id : process.env.FIREBASE_PROJECT_ID;
 
     admin.initializeApp({
-      credential: credential
+      credential: credential,
+      storageBucket: `${projectId}.firebasestorage.app`
     });
 
     db = admin.firestore();
@@ -42,8 +44,7 @@ if (hasEnvConfig || hasFileConfig) {
 
 function setupMockDb() {
   isMock = true;
-  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
-  const dataDir = isServerless ? path.join('/tmp', 'data') : path.join(__dirname, '..', 'data');
+  const dataDir = path.join(__dirname, '..', 'data');
   
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });

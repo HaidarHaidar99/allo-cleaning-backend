@@ -2,32 +2,13 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+const { db, isMock } = require('../config/firebase');
 const { verifyToken } = require('../middleware/auth');
 
-// Ensure uploads folder exists
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
-const uploadsDir = isServerless ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', 'uploads');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Multer Upload Middleware
+// Use memory storage so file stays in RAM (works on serverless)
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp|gif/;
@@ -41,19 +22,39 @@ const upload = multer({
   }
 });
 
-// Helpers to delete local file
-const deleteLocalFile = (filepath) => {
-  if (!filepath) return;
-  // Convert URL path back to absolute system path if it starts with /uploads/
-  if (filepath.startsWith('/uploads/')) {
-    const localPath = isServerless ? path.join('/tmp', filepath) : path.join(__dirname, '..', filepath);
-    if (fs.existsSync(localPath)) {
-      try {
-        fs.unlinkSync(localPath);
-      } catch (err) {
-        console.error(`Failed to delete local file: ${localPath}`, err.message);
-      }
+// Upload image buffer to Firebase Storage and return the public URL
+const uploadToFirebaseStorage = async (fileBuffer, originalName, mimetype) => {
+  try {
+    const bucket = admin.storage().bucket();
+    const uniqueName = `services/${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(originalName)}`;
+    const file = bucket.file(uniqueName);
+
+    await file.save(fileBuffer, {
+      metadata: { contentType: mimetype },
+      public: true,
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${uniqueName}`;
+    return publicUrl;
+  } catch (error) {
+    console.error('Firebase Storage upload error:', error);
+    throw new Error('Failed to upload image.');
+  }
+};
+
+// Delete image from Firebase Storage
+const deleteFromFirebaseStorage = async (imageUrl) => {
+  if (!imageUrl || !imageUrl.includes('storage.googleapis.com')) return;
+  try {
+    const bucket = admin.storage().bucket();
+    // Extract file path from URL
+    const urlParts = imageUrl.split(`${bucket.name}/`);
+    if (urlParts.length > 1) {
+      const filePath = decodeURIComponent(urlParts[1]);
+      await bucket.file(filePath).delete();
     }
+  } catch (error) {
+    console.error('Failed to delete image from Firebase Storage:', error.message);
   }
 };
 
@@ -92,8 +93,6 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
     const { name, description } = req.body;
 
     if (!name || !description) {
-      // If file was uploaded, clean it up since validation failed
-      if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
       return res.status(400).json({ message: 'Name and description are required.' });
     }
 
@@ -101,7 +100,13 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Service image file is required.' });
     }
 
-    const imageUrl = `/uploads/${req.file.filename}`;
+    let imageUrl;
+    if (isMock) {
+      // For local dev without Firebase Storage, use a placeholder
+      imageUrl = '/uploads/logo.jpg';
+    } else {
+      imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
+    }
 
     const serviceData = {
       name: name.trim(),
@@ -119,8 +124,7 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
 
   } catch (error) {
     console.error('Error adding service:', error);
-    if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to create service.' });
+    res.status(500).json({ message: error.message || 'Failed to create service.' });
   }
 });
 
@@ -134,7 +138,6 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     const docRef = db.collection('services').doc(docId);
     const serviceDoc = await docRef.get();
     if (!serviceDoc.exists) {
-      if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
       return res.status(404).json({ message: 'Service not found.' });
     }
 
@@ -146,9 +149,14 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     if (description) updatedData.description = description.trim();
 
     if (req.file) {
-      // New image uploaded, set new url and delete old local image file
-      updatedData.imageUrl = `/uploads/${req.file.filename}`;
-      deleteLocalFile(currentServiceData.imageUrl);
+      if (isMock) {
+        updatedData.imageUrl = '/uploads/logo.jpg';
+      } else {
+        // Upload new image to Firebase Storage
+        updatedData.imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
+        // Delete old image from Firebase Storage
+        await deleteFromFirebaseStorage(currentServiceData.imageUrl);
+      }
     }
 
     await docRef.update(updatedData);
@@ -160,8 +168,7 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
 
   } catch (error) {
     console.error('Error editing service:', error);
-    if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to update service.' });
+    res.status(500).json({ message: error.message || 'Failed to update service.' });
   }
 });
 
@@ -181,8 +188,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
     // Delete service record from database
     await docRef.delete();
 
-    // Delete image file from local folder
-    deleteLocalFile(serviceData.imageUrl);
+    // Delete image from Firebase Storage
+    if (!isMock) {
+      await deleteFromFirebaseStorage(serviceData.imageUrl);
+    }
 
     res.status(200).json({ message: 'Service deleted successfully.' });
   } catch (error) {
@@ -200,19 +209,19 @@ const seedDefaultServices = async () => {
         {
           name: 'Deep Cleaning',
           description: 'Complete deep cleaning service for all rooms, including kitchen sanitization, bathroom scrubbing, dusting, vacuuming, and floor mopping.',
-          imageUrl: '/uploads/logo.jpg',
+          imageUrl: '',
           createdAt: new Date().toISOString()
         },
         {
           name: 'Office Cleaning',
           description: 'Keep your workspace clean and professional. Dusting desks, emptying trash, vacuuming carpets, and sanitizing common areas.',
-          imageUrl: '/uploads/logo.jpg',
+          imageUrl: '',
           createdAt: new Date().toISOString()
         },
         {
           name: 'Window Washing',
           description: 'Streak-free window washing for residential and commercial buildings. Includes interior and exterior glass cleaning.',
-          imageUrl: '/uploads/logo.jpg',
+          imageUrl: '',
           createdAt: new Date().toISOString()
         }
       ];
@@ -230,4 +239,3 @@ const seedDefaultServices = async () => {
 router.seedDefaultServices = seedDefaultServices;
 
 module.exports = router;
-

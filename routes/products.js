@@ -2,32 +2,13 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
+const { db, isMock } = require('../config/firebase');
 const { verifyToken } = require('../middleware/auth');
 
-// Ensure uploads folder exists
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
-const uploadsDir = isServerless ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', 'uploads');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Multer Upload Middleware
+// Use memory storage so file stays in RAM (works on serverless)
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp|gif/;
@@ -41,19 +22,38 @@ const upload = multer({
   }
 });
 
-// Helpers to delete local file
-const deleteLocalFile = (filepath) => {
-  if (!filepath) return;
-  // Convert URL path back to absolute system path if it starts with /uploads/
-  if (filepath.startsWith('/uploads/')) {
-    const localPath = isServerless ? path.join('/tmp', filepath) : path.join(__dirname, '..', filepath);
-    if (fs.existsSync(localPath)) {
-      try {
-        fs.unlinkSync(localPath);
-      } catch (err) {
-        console.error(`Failed to delete local file: ${localPath}`, err.message);
-      }
+// Upload image buffer to Firebase Storage and return the public URL
+const uploadToFirebaseStorage = async (fileBuffer, originalName, mimetype) => {
+  try {
+    const bucket = admin.storage().bucket();
+    const uniqueName = `products/${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(originalName)}`;
+    const file = bucket.file(uniqueName);
+
+    await file.save(fileBuffer, {
+      metadata: { contentType: mimetype },
+      public: true,
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${uniqueName}`;
+    return publicUrl;
+  } catch (error) {
+    console.error('Firebase Storage upload error:', error);
+    throw new Error('Failed to upload image.');
+  }
+};
+
+// Delete image from Firebase Storage
+const deleteFromFirebaseStorage = async (imageUrl) => {
+  if (!imageUrl || !imageUrl.includes('storage.googleapis.com')) return;
+  try {
+    const bucket = admin.storage().bucket();
+    const urlParts = imageUrl.split(`${bucket.name}/`);
+    if (urlParts.length > 1) {
+      const filePath = decodeURIComponent(urlParts[1]);
+      await bucket.file(filePath).delete();
     }
+  } catch (error) {
+    console.error('Failed to delete image from Firebase Storage:', error.message);
   }
 };
 
@@ -92,7 +92,6 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
     const { name, category, description, price } = req.body;
 
     if (!name || !category || !description) {
-      if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
       return res.status(400).json({ message: 'Name, category, and description are required.' });
     }
 
@@ -100,7 +99,12 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Product image file is required.' });
     }
 
-    const imageUrl = `/uploads/${req.file.filename}`;
+    let imageUrl;
+    if (isMock) {
+      imageUrl = '/uploads/logo.jpg';
+    } else {
+      imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
+    }
 
     const productData = {
       name: name.trim(),
@@ -120,8 +124,7 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
 
   } catch (error) {
     console.error('Error adding product:', error);
-    if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to create product.' });
+    res.status(500).json({ message: error.message || 'Failed to create product.' });
   }
 });
 
@@ -135,7 +138,6 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     const docRef = db.collection('products').doc(docId);
     const productDoc = await docRef.get();
     if (!productDoc.exists) {
-      if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
       return res.status(404).json({ message: 'Product not found.' });
     }
 
@@ -151,8 +153,12 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     }
 
     if (req.file) {
-      updatedData.imageUrl = `/uploads/${req.file.filename}`;
-      deleteLocalFile(currentProductData.imageUrl);
+      if (isMock) {
+        updatedData.imageUrl = '/uploads/logo.jpg';
+      } else {
+        updatedData.imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
+        await deleteFromFirebaseStorage(currentProductData.imageUrl);
+      }
     }
 
     await docRef.update(updatedData);
@@ -164,8 +170,7 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
 
   } catch (error) {
     console.error('Error editing product:', error);
-    if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to update product.' });
+    res.status(500).json({ message: error.message || 'Failed to update product.' });
   }
 });
 
@@ -182,7 +187,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
 
     const productData = productDoc.data();
     await docRef.delete();
-    deleteLocalFile(productData.imageUrl);
+
+    if (!isMock) {
+      await deleteFromFirebaseStorage(productData.imageUrl);
+    }
 
     res.status(200).json({ message: 'Product deleted successfully.' });
   } catch (error) {
@@ -202,7 +210,7 @@ const seedDefaultProducts = async () => {
           category: 'Cleaning Supplies',
           description: 'Ultra-soft, highly absorbent microfiber cloths suitable for lint-free surface polishing and dusting.',
           price: 12.99,
-          imageUrl: '/uploads/logo.jpg',
+          imageUrl: '',
           createdAt: new Date().toISOString()
         },
         {
@@ -210,15 +218,15 @@ const seedDefaultProducts = async () => {
           category: 'Cleaning Sprays',
           description: 'Environmentally safe, biodegradable all-purpose cleaner with organic lemon essence extract.',
           price: 9.50,
-          imageUrl: '/uploads/logo.jpg',
+          imageUrl: '',
           createdAt: new Date().toISOString()
         },
         {
           name: 'Sanitizing Disinfectant Wipes',
           category: 'Cleaning Supplies',
           description: 'Eliminates 99.9% of bacteria and germs. Suitable for office desks and household surface sanitization.',
-          price: null, // Test case for optional price
-          imageUrl: '/uploads/logo.jpg',
+          price: null,
+          imageUrl: '',
           createdAt: new Date().toISOString()
         }
       ];
