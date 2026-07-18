@@ -89,12 +89,12 @@ router.get('/:id', async (req, res) => {
 // Route 3: Add new service (Admin only)
 router.post('/', verifyToken, upload.single('image'), async (req, res) => {
   try {
-    const { name, category, description, price } = req.body;
+    const { name, description } = req.body;
 
-    if (!name || !category || !description) {
+    if (!name || !description) {
       // If file was uploaded, clean it up since validation failed
       if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-      return res.status(400).json({ message: 'Name, category, and description are required.' });
+      return res.status(400).json({ message: 'Name and description are required.' });
     }
 
     if (!req.file) {
@@ -105,9 +105,7 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
 
     const serviceData = {
       name: name.trim(),
-      category: category.trim(),
       description: description.trim(),
-      price: price ? parseFloat(price) : null,
       imageUrl,
       createdAt: new Date().toISOString()
     };
@@ -129,7 +127,7 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
 // Route 4: Edit service (Admin only)
 router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
   try {
-    const { name, category, description, price } = req.body;
+    const { name, description } = req.body;
     const docId = req.params.id;
 
     // Check if service exists
@@ -145,11 +143,7 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     // Prepare updated data
     const updatedData = {};
     if (name) updatedData.name = name.trim();
-    if (category) updatedData.category = category.trim();
     if (description) updatedData.description = description.trim();
-    if (price !== undefined) {
-      updatedData.price = price ? parseFloat(price) : null;
-    }
 
     if (req.file) {
       // New image uploaded, set new url and delete old local image file
@@ -205,25 +199,19 @@ const seedDefaultServices = async () => {
       const defaultServices = [
         {
           name: 'Deep Cleaning',
-          category: 'Home Cleaning',
           description: 'Complete deep cleaning service for all rooms, including kitchen sanitization, bathroom scrubbing, dusting, vacuuming, and floor mopping.',
-          price: 150.00,
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         },
         {
           name: 'Office Cleaning',
-          category: 'Office Cleaning',
           description: 'Keep your workspace clean and professional. Dusting desks, emptying trash, vacuuming carpets, and sanitizing common areas.',
-          price: 120.00,
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         },
         {
           name: 'Window Washing',
-          category: 'Specialty Cleaning',
           description: 'Streak-free window washing for residential and commercial buildings. Includes interior and exterior glass cleaning.',
-          price: 75.00,
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         }
