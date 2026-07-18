@@ -67,11 +67,13 @@ app.get('/api/stats', verifyToken, async (req, res) => {
     const servicesSnapshot = await db.collection('services').get();
     const formsSnapshot = await db.collection('forms').get();
     const adminsSnapshot = await db.collection('admins').get();
+    const productsSnapshot = await db.collection('products').get();
 
     res.status(200).json({
       totalServices: servicesSnapshot.size || 0,
       totalForms: formsSnapshot.size || 0,
-      totalAdmins: adminsSnapshot.size || 0
+      totalAdmins: adminsSnapshot.size || 0,
+      totalProducts: productsSnapshot.size || 0
     });
   } catch (error) {
     console.error('Error fetching admin dashboard stats:', error);
