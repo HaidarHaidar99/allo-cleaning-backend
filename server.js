@@ -34,6 +34,7 @@ app.use('/uploads', express.static(uploadsDir));
 // Import routers
 const authRouter = require('./routes/auth');
 const servicesRouter = require('./routes/services');
+const productsRouter = require('./routes/products');
 const formsRouter = require('./routes/forms');
 const adminsRouter = require('./routes/admins');
 const settingsRouter = require('./routes/settings');
@@ -46,11 +47,15 @@ if (authRouter.seedDefaultAdmin) {
 if (servicesRouter.seedDefaultServices) {
   servicesRouter.seedDefaultServices();
 }
+if (productsRouter.seedDefaultProducts) {
+  productsRouter.seedDefaultProducts();
+}
 
 
 // Mount routers
 app.use('/api/auth', authRouter);
 app.use('/api/services', servicesRouter);
+app.use('/api/products', productsRouter);
 app.use('/api/forms', formsRouter);
 app.use('/api/admins', adminsRouter);
 app.use('/api/settings', settingsRouter);

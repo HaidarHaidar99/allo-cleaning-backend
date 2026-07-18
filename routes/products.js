@@ -42,7 +42,6 @@ const upload = multer({
 // Helpers to delete local file
 const deleteLocalFile = (filepath) => {
   if (!filepath) return;
-  // Convert URL path back to absolute system path if it starts with /uploads/
   if (filepath.startsWith('/uploads/')) {
     const localPath = path.join(__dirname, '..', filepath);
     if (fs.existsSync(localPath)) {
@@ -55,53 +54,52 @@ const deleteLocalFile = (filepath) => {
   }
 };
 
-// Route 1: Get all services (Public)
+// Route 1: Get all products (Public)
 router.get('/', async (req, res) => {
   try {
-    const snapshot = await db.collection('services').get();
-    const services = [];
+    const snapshot = await db.collection('products').get();
+    const products = [];
     snapshot.forEach(doc => {
-      services.push({ id: doc.id, ...doc.data() });
+      products.push({ id: doc.id, ...doc.data() });
     });
-    res.status(200).json(services);
+    res.status(200).json(products);
   } catch (error) {
-    console.error('Error fetching services:', error);
-    res.status(500).json({ message: 'Failed to fetch services.' });
+    console.error('Error fetching products:', error);
+    res.status(500).json({ message: 'Failed to fetch products.' });
   }
 });
 
-// Route 2: Get single service (Public)
+// Route 2: Get single product (Public)
 router.get('/:id', async (req, res) => {
   try {
-    const doc = await db.collection('services').doc(req.params.id).get();
+    const doc = await db.collection('products').doc(req.params.id).get();
     if (!doc.exists) {
-      return res.status(404).json({ message: 'Service not found.' });
+      return res.status(404).json({ message: 'Product not found.' });
     }
     res.status(200).json({ id: doc.id, ...doc.data() });
   } catch (error) {
-    console.error('Error fetching service:', error);
-    res.status(500).json({ message: 'Failed to fetch service.' });
+    console.error('Error fetching product:', error);
+    res.status(500).json({ message: 'Failed to fetch product.' });
   }
 });
 
-// Route 3: Add new service (Admin only)
+// Route 3: Add new product (Admin only)
 router.post('/', verifyToken, upload.single('image'), async (req, res) => {
   try {
     const { name, category, description, price } = req.body;
 
     if (!name || !category || !description) {
-      // If file was uploaded, clean it up since validation failed
       if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
       return res.status(400).json({ message: 'Name, category, and description are required.' });
     }
 
     if (!req.file) {
-      return res.status(400).json({ message: 'Service image file is required.' });
+      return res.status(400).json({ message: 'Product image file is required.' });
     }
 
     const imageUrl = `/uploads/${req.file.filename}`;
 
-    const serviceData = {
+    const productData = {
       name: name.trim(),
       category: category.trim(),
       description: description.trim(),
@@ -110,35 +108,35 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
       createdAt: new Date().toISOString()
     };
 
-    const docRef = await db.collection('services').add(serviceData);
+    const docRef = await db.collection('products').add(productData);
     
     res.status(201).json({
-      message: 'Service created successfully.',
-      service: { id: docRef.id, ...serviceData }
+      message: 'Product created successfully.',
+      product: { id: docRef.id, ...productData }
     });
 
   } catch (error) {
-    console.error('Error adding service:', error);
+    console.error('Error adding product:', error);
     if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to create service.' });
+    res.status(500).json({ message: 'Failed to create product.' });
   }
 });
 
-// Route 4: Edit service (Admin only)
+// Route 4: Edit product (Admin only)
 router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
   try {
     const { name, category, description, price } = req.body;
     const docId = req.params.id;
 
-    // Check if service exists
-    const docRef = db.collection('services').doc(docId);
-    const serviceDoc = await docRef.get();
-    if (!serviceDoc.exists) {
+    // Check if product exists
+    const docRef = db.collection('products').doc(docId);
+    const productDoc = await docRef.get();
+    if (!productDoc.exists) {
       if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-      return res.status(404).json({ message: 'Service not found.' });
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    const currentServiceData = serviceDoc.data();
+    const currentProductData = productDoc.data();
 
     // Prepare updated data
     const updatedData = {};
@@ -150,94 +148,88 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     }
 
     if (req.file) {
-      // New image uploaded, set new url and delete old local image file
       updatedData.imageUrl = `/uploads/${req.file.filename}`;
-      deleteLocalFile(currentServiceData.imageUrl);
+      deleteLocalFile(currentProductData.imageUrl);
     }
 
     await docRef.update(updatedData);
 
     res.status(200).json({
-      message: 'Service updated successfully.',
-      service: { id: docId, ...currentServiceData, ...updatedData }
+      message: 'Product updated successfully.',
+      product: { id: docId, ...currentProductData, ...updatedData }
     });
 
   } catch (error) {
-    console.error('Error editing service:', error);
+    console.error('Error editing product:', error);
     if (req.file) deleteLocalFile(`/uploads/${req.file.filename}`);
-    res.status(500).json({ message: 'Failed to update service.' });
+    res.status(500).json({ message: 'Failed to update product.' });
   }
 });
 
-// Route 5: Delete service (Admin only)
+// Route 5: Delete product (Admin only)
 router.delete('/:id', verifyToken, async (req, res) => {
   try {
     const docId = req.params.id;
-    const docRef = db.collection('services').doc(docId);
-    const serviceDoc = await docRef.get();
+    const docRef = db.collection('products').doc(docId);
+    const productDoc = await docRef.get();
 
-    if (!serviceDoc.exists) {
-      return res.status(404).json({ message: 'Service not found.' });
+    if (!productDoc.exists) {
+      return res.status(404).json({ message: 'Product not found.' });
     }
 
-    const serviceData = serviceDoc.data();
-    
-    // Delete service record from database
+    const productData = productDoc.data();
     await docRef.delete();
+    deleteLocalFile(productData.imageUrl);
 
-    // Delete image file from local folder
-    deleteLocalFile(serviceData.imageUrl);
-
-    res.status(200).json({ message: 'Service deleted successfully.' });
+    res.status(200).json({ message: 'Product deleted successfully.' });
   } catch (error) {
-    console.error('Error deleting service:', error);
-    res.status(500).json({ message: 'Failed to delete service.' });
+    console.error('Error deleting product:', error);
+    res.status(500).json({ message: 'Failed to delete product.' });
   }
 });
 
-const seedDefaultServices = async () => {
+const seedDefaultProducts = async () => {
   try {
-    const snapshot = await db.collection('services').get();
+    const snapshot = await db.collection('products').get();
     if (snapshot.empty) {
-      console.log('No services found. Seeding default services...');
-      const defaultServices = [
+      console.log('No products found. Seeding default products...');
+      const defaultProducts = [
         {
-          name: 'Deep Cleaning',
-          category: 'Home Cleaning',
-          description: 'Complete deep cleaning service for all rooms, including kitchen sanitization, bathroom scrubbing, dusting, vacuuming, and floor mopping.',
-          price: 150.00,
+          name: 'Premium Microfiber Cloths (4-Pack)',
+          category: 'Cleaning Supplies',
+          description: 'Ultra-soft, highly absorbent microfiber cloths suitable for lint-free surface polishing and dusting.',
+          price: 12.99,
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         },
         {
-          name: 'Office Cleaning',
-          category: 'Office Cleaning',
-          description: 'Keep your workspace clean and professional. Dusting desks, emptying trash, vacuuming carpets, and sanitizing common areas.',
-          price: 120.00,
+          name: 'All-Purpose Organic Spray',
+          category: 'Cleaning Sprays',
+          description: 'Environmentally safe, biodegradable all-purpose cleaner with organic lemon essence extract.',
+          price: 9.50,
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         },
         {
-          name: 'Window Washing',
-          category: 'Specialty Cleaning',
-          description: 'Streak-free window washing for residential and commercial buildings. Includes interior and exterior glass cleaning.',
-          price: 75.00,
+          name: 'Sanitizing Disinfectant Wipes',
+          category: 'Cleaning Supplies',
+          description: 'Eliminates 99.9% of bacteria and germs. Suitable for office desks and household surface sanitization.',
+          price: null, // Test case for optional price
           imageUrl: '/uploads/logo.jpg',
           createdAt: new Date().toISOString()
         }
       ];
 
-      for (const service of defaultServices) {
-        await db.collection('services').add(service);
+      for (const product of defaultProducts) {
+        await db.collection('products').add(product);
       }
-      console.log('Default services seeded successfully.');
+      console.log('Default products seeded successfully.');
     }
   } catch (error) {
-    console.error('Error seeding default services:', error);
+    console.error('Error seeding default products:', error);
   }
 };
 
-router.seedDefaultServices = seedDefaultServices;
+router.seedDefaultProducts = seedDefaultProducts;
 
 module.exports = router;
-
