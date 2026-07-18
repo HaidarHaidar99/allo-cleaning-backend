@@ -7,7 +7,9 @@ const { db } = require('../config/firebase');
 const { verifyToken } = require('../middleware/auth');
 
 // Ensure uploads folder exists
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
+const uploadsDir = isServerless ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', 'uploads');
+
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -42,8 +44,9 @@ const upload = multer({
 // Helpers to delete local file
 const deleteLocalFile = (filepath) => {
   if (!filepath) return;
+  // Convert URL path back to absolute system path if it starts with /uploads/
   if (filepath.startsWith('/uploads/')) {
-    const localPath = path.join(__dirname, '..', filepath);
+    const localPath = isServerless ? path.join('/tmp', filepath) : path.join(__dirname, '..', filepath);
     if (fs.existsSync(localPath)) {
       try {
         fs.unlinkSync(localPath);

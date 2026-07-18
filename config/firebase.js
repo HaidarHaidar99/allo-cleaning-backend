@@ -42,7 +42,8 @@ if (hasEnvConfig || hasFileConfig) {
 
 function setupMockDb() {
   isMock = true;
-  const dataDir = path.join(__dirname, '..', 'data');
+  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || __dirname.includes('/var/task');
+  const dataDir = isServerless ? path.join('/tmp', 'data') : path.join(__dirname, '..', 'data');
   
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
