@@ -202,7 +202,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
 
 const seedDefaultServices = async () => {
   try {
-    const snapshot = await db.collection('services').get();
+    const snapshot = await db.collection('services').limit(1).get();
     if (snapshot.empty) {
       console.log('No services found. Seeding default services...');
       const defaultServices = [

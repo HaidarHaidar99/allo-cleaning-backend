@@ -35,14 +35,18 @@ router.post('/', async (req, res) => {
 // Route 2: Get all contact messages (Admin only)
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const snapshot = await db.collection('forms').get();
+    let query = db.collection('forms').orderBy('createdAt', 'desc');
+    
+    const limitVal = parseInt(req.query.limit, 10);
+    if (!isNaN(limitVal) && limitVal > 0) {
+      query = query.limit(limitVal);
+    }
+    
+    const snapshot = await query.get();
     const forms = [];
     snapshot.forEach(doc => {
       forms.push({ id: doc.id, ...doc.data() });
     });
-    
-    // Sort locally by date descending
-    forms.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
     res.status(200).json(forms);
   } catch (error) {

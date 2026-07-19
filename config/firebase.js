@@ -106,6 +106,61 @@ function setupMockDb() {
     }
   }
 
+  class MockQuery {
+    constructor(collectionRef, docs) {
+      this.collectionRef = collectionRef;
+      this._docs = docs;
+    }
+
+    where(field, op, value) {
+      const filtered = this._docs.filter(doc => {
+        const item = doc.data();
+        if (op === '==') return item[field] === value;
+        if (op === '>=') return item[field] >= value;
+        if (op === '<=') return item[field] <= value;
+        if (op === '>') return item[field] > value;
+        if (op === '<') return item[field] < value;
+        return true;
+      });
+      return new MockQuery(this.collectionRef, filtered);
+    }
+
+    orderBy(field, direction = 'asc') {
+      const sorted = [...this._docs].sort((a, b) => {
+        const valA = a.data()[field];
+        const valB = b.data()[field];
+        if (valA === valB) return 0;
+        if (valA === null || valA === undefined) return 1;
+        if (valB === null || valB === undefined) return -1;
+        
+        const comparison = valA < valB ? -1 : 1;
+        return direction === 'desc' ? -comparison : comparison;
+      });
+      return new MockQuery(this.collectionRef, sorted);
+    }
+
+    limit(n) {
+      return new MockQuery(this.collectionRef, this._docs.slice(0, n));
+    }
+
+    count() {
+      return {
+        get: async () => ({
+          data: () => ({ count: this._docs.length })
+        })
+      };
+    }
+
+    async get() {
+      return {
+        docs: this._docs,
+        forEach: (cb) => this._docs.forEach(cb),
+        empty: this._docs.length === 0,
+        size: this._docs.length
+      };
+    }
+  }
+
   class MockCollectionRef {
     constructor(name) {
       this.name = name;
@@ -135,7 +190,6 @@ function setupMockDb() {
     }
 
     doc(id) {
-      // If no id is provided, generate one
       const targetId = id || Math.random().toString(36).substring(2, 15);
       return new MockDocRef(this, targetId);
     }
@@ -148,45 +202,38 @@ function setupMockDb() {
       return { id, get: () => this.doc(id).get() };
     }
 
-    async get() {
-      this.load(); // Refresh data
-      const docs = this.dbData.map(item => ({
+    getDocsData() {
+      this.load();
+      return this.dbData.map(item => ({
         id: item.id,
         exists: true,
         data: () => JSON.parse(JSON.stringify(item))
       }));
-      return {
-        docs,
-        forEach: (cb) => docs.forEach(cb),
-        empty: docs.length === 0,
-        size: docs.length
-      };
+    }
+
+    async get() {
+      const docs = this.getDocsData();
+      return new MockQuery(this, docs).get();
     }
 
     where(field, op, value) {
-      this.load(); // Refresh data
-      const filtered = this.dbData.filter(item => {
-        if (op === '==') return item[field] === value;
-        if (op === '>=') return item[field] >= value;
-        if (op === '<=') return item[field] <= value;
-        if (op === '>') return item[field] > value;
-        if (op === '<') return item[field] < value;
-        return true;
-      });
-      const docs = filtered.map(item => ({
-        id: item.id,
-        exists: true,
-        data: () => JSON.parse(JSON.stringify(item))
-      }));
-      
-      return {
-        get: async () => ({
-          docs,
-          forEach: (cb) => docs.forEach(cb),
-          empty: docs.length === 0,
-          size: docs.length
-        })
-      };
+      const docs = this.getDocsData();
+      return new MockQuery(this, docs).where(field, op, value);
+    }
+
+    orderBy(field, direction) {
+      const docs = this.getDocsData();
+      return new MockQuery(this, docs).orderBy(field, direction);
+    }
+
+    limit(n) {
+      const docs = this.getDocsData();
+      return new MockQuery(this, docs).limit(n);
+    }
+
+    count() {
+      const docs = this.getDocsData();
+      return new MockQuery(this, docs).count();
     }
   }
 

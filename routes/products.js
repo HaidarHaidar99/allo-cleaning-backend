@@ -201,7 +201,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
 
 const seedDefaultProducts = async () => {
   try {
-    const snapshot = await db.collection('products').get();
+    const snapshot = await db.collection('products').limit(1).get();
     if (snapshot.empty) {
       console.log('No products found. Seeding default products...');
       const defaultProducts = [

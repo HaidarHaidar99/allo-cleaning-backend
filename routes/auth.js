@@ -9,7 +9,7 @@ const { verifyToken, JWT_SECRET } = require('../middleware/auth');
 // Seed a default admin if none exist
 const seedDefaultAdmin = async () => {
   try {
-    const adminsSnapshot = await db.collection('admins').get();
+    const adminsSnapshot = await db.collection('admins').limit(1).get();
     if (adminsSnapshot.empty) {
       console.log('No admin accounts found. Seeding default admin...');
       const hashedPassword = await bcrypt.hash('admin123', 10);

@@ -184,8 +184,8 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 2. Count total admins in database
-    const snapshot = await db.collection('admins').get();
-    if (snapshot.size <= 1) {
+    const countRes = await db.collection('admins').count().get();
+    if (countRes.data().count <= 1) {
       return res.status(400).json({ message: 'Cannot delete admin. At least one admin account must remain.' });
     }
 

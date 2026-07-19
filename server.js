@@ -65,16 +65,18 @@ app.use('/api/settings', settingsRouter);
 // Admin Dashboard stats endpoint
 app.get('/api/stats', verifyToken, async (req, res) => {
   try {
-    const servicesSnapshot = await db.collection('services').get();
-    const formsSnapshot = await db.collection('forms').get();
-    const adminsSnapshot = await db.collection('admins').get();
-    const productsSnapshot = await db.collection('products').get();
+    const [servicesCountRes, formsCountRes, adminsCountRes, productsCountRes] = await Promise.all([
+      db.collection('services').count().get(),
+      db.collection('forms').count().get(),
+      db.collection('admins').count().get(),
+      db.collection('products').count().get()
+    ]);
 
     res.status(200).json({
-      totalServices: servicesSnapshot.size || 0,
-      totalForms: formsSnapshot.size || 0,
-      totalAdmins: adminsSnapshot.size || 0,
-      totalProducts: productsSnapshot.size || 0
+      totalServices: servicesCountRes.data().count || 0,
+      totalForms: formsCountRes.data().count || 0,
+      totalAdmins: adminsCountRes.data().count || 0,
+      totalProducts: productsCountRes.data().count || 0
     });
   } catch (error) {
     console.error('Error fetching admin dashboard stats:', error);
