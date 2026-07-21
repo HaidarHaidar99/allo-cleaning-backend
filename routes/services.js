@@ -26,6 +26,8 @@ const upload = multer({
 const uploadToFirebaseStorage = async (fileBuffer, originalName, mimetype) => {
   try {
     const bucket = admin.storage().bucket();
+    console.log(`[Storage] Uploading to bucket: ${bucket.name}`);
+    
     const uniqueName = `services/${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(originalName)}`;
     const file = bucket.file(uniqueName);
 
@@ -35,10 +37,20 @@ const uploadToFirebaseStorage = async (fileBuffer, originalName, mimetype) => {
     });
 
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${uniqueName}`;
+    console.log(`[Storage] Upload successful: ${publicUrl}`);
     return publicUrl;
   } catch (error) {
-    console.error('Firebase Storage upload error:', error);
-    throw new Error('Failed to upload image.');
+    console.error('[Storage] Firebase Storage upload error:', error.message);
+    console.error('[Storage] Full error:', JSON.stringify(error, null, 2));
+    
+    // Provide helpful error messages based on common failures
+    if (error.code === 404 || error.message.includes('Not Found')) {
+      throw new Error('Firebase Storage bucket not found. Please enable Cloud Storage in your Firebase Console (Build → Storage) and verify FIREBASE_STORAGE_BUCKET in your .env file.');
+    }
+    if (error.code === 403 || error.message.includes('Permission') || error.message.includes('Forbidden')) {
+      throw new Error('Firebase Storage permission denied. Check your Firebase Storage security rules and service account permissions.');
+    }
+    throw new Error(`Image upload failed: ${error.message}`);
   }
 };
 

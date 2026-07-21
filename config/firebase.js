@@ -28,7 +28,7 @@ if (hasEnvConfig || hasFileConfig) {
 
     admin.initializeApp({
       credential: credential,
-      storageBucket: `${projectId}.firebasestorage.app`
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`
     });
 
     db = admin.firestore();
