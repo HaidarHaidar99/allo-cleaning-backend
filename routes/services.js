@@ -1,74 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const path = require('path');
-const admin = require('firebase-admin');
 const { db, isMock } = require('../config/firebase');
 const { verifyToken } = require('../middleware/auth');
-
-// Use memory storage so file stays in RAM (works on serverless)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp|gif/;
-    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowedTypes.test(file.mimetype);
-    if (ext && mime) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only images (jpg, jpeg, png, webp, gif) are allowed!'));
-    }
-  }
-});
-
-// Upload image buffer to Firebase Storage and return the public URL
-const uploadToFirebaseStorage = async (fileBuffer, originalName, mimetype) => {
-  try {
-    const bucket = admin.storage().bucket();
-    console.log(`[Storage] Uploading to bucket: ${bucket.name}`);
-    
-    const uniqueName = `services/${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(originalName)}`;
-    const file = bucket.file(uniqueName);
-
-    await file.save(fileBuffer, {
-      metadata: { contentType: mimetype },
-      public: true,
-    });
-
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${uniqueName}`;
-    console.log(`[Storage] Upload successful: ${publicUrl}`);
-    return publicUrl;
-  } catch (error) {
-    console.error('[Storage] Firebase Storage upload error:', error.message);
-    console.error('[Storage] Full error:', JSON.stringify(error, null, 2));
-    
-    // Provide helpful error messages based on common failures
-    if (error.code === 404 || error.message.includes('Not Found')) {
-      throw new Error('Firebase Storage bucket not found. Please enable Cloud Storage in your Firebase Console (Build → Storage) and verify FIREBASE_STORAGE_BUCKET in your .env file.');
-    }
-    if (error.code === 403 || error.message.includes('Permission') || error.message.includes('Forbidden')) {
-      throw new Error('Firebase Storage permission denied. Check your Firebase Storage security rules and service account permissions.');
-    }
-    throw new Error(`Image upload failed: ${error.message}`);
-  }
-};
-
-// Delete image from Firebase Storage
-const deleteFromFirebaseStorage = async (imageUrl) => {
-  if (!imageUrl || !imageUrl.includes('storage.googleapis.com')) return;
-  try {
-    const bucket = admin.storage().bucket();
-    // Extract file path from URL
-    const urlParts = imageUrl.split(`${bucket.name}/`);
-    if (urlParts.length > 1) {
-      const filePath = decodeURIComponent(urlParts[1]);
-      await bucket.file(filePath).delete();
-    }
-  } catch (error) {
-    console.error('Failed to delete image from Firebase Storage:', error.message);
-  }
-};
 
 // Route 1: Get all services (Public)
 router.get('/', async (req, res) => {
@@ -100,30 +34,22 @@ router.get('/:id', async (req, res) => {
 });
 
 // Route 3: Add new service (Admin only)
-router.post('/', verifyToken, upload.single('image'), async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, imageBase64 } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ message: 'Name and description are required.' });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'Service image file is required.' });
-    }
-
-    let imageUrl;
-    if (isMock) {
-      // For local dev without Firebase Storage, use a placeholder
-      imageUrl = '/uploads/logo.jpg';
-    } else {
-      imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
+    if (!imageBase64) {
+      return res.status(400).json({ message: 'Service image is required.' });
     }
 
     const serviceData = {
       name: name.trim(),
       description: description.trim(),
-      imageUrl,
+      imageBase64: imageBase64,
       createdAt: new Date().toISOString()
     };
 
@@ -141,9 +67,9 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
 });
 
 // Route 4: Edit service (Admin only)
-router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
+router.put('/:id', verifyToken, async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, imageBase64, imageUrl } = req.body;
     const docId = req.params.id;
 
     // Check if service exists
@@ -159,17 +85,9 @@ router.put('/:id', verifyToken, upload.single('image'), async (req, res) => {
     const updatedData = {};
     if (name) updatedData.name = name.trim();
     if (description) updatedData.description = description.trim();
-
-    if (req.file) {
-      if (isMock) {
-        updatedData.imageUrl = '/uploads/logo.jpg';
-      } else {
-        // Upload new image to Firebase Storage
-        updatedData.imageUrl = await uploadToFirebaseStorage(req.file.buffer, req.file.originalname, req.file.mimetype);
-        // Delete old image from Firebase Storage
-        await deleteFromFirebaseStorage(currentServiceData.imageUrl);
-      }
-    }
+    if (imageBase64) updatedData.imageBase64 = imageBase64;
+    // Retain legacy imageUrl if no new base64 image is provided and a legacy url exists.
+    if (imageUrl) updatedData.imageUrl = imageUrl;
 
     await docRef.update(updatedData);
 
@@ -199,11 +117,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
     
     // Delete service record from database
     await docRef.delete();
-
-    // Delete image from Firebase Storage
-    if (!isMock) {
-      await deleteFromFirebaseStorage(serviceData.imageUrl);
-    }
 
     res.status(200).json({ message: 'Service deleted successfully.' });
   } catch (error) {

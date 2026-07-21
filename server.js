@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const multer = require('multer');
 require('dotenv').config();
 
 const { db } = require('./config/firebase');
@@ -19,18 +18,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parser middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Create uploads directory if it does not exist (for local dev static files only)
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Serve uploaded images statically (legacy/local dev fallback)
-app.use('/uploads', express.static(uploadsDir));
+// Body parser middleware configured for large Base64 image payloads
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import routers
 const authRouter = require('./routes/auth');
@@ -88,9 +78,6 @@ app.get('/', (req, res) => {
 // Global error handler to ensure JSON responses
 app.use((err, req, res, next) => {
   console.error('Unhandled Error:', err);
-  if (err instanceof multer.MulterError) {
-    return res.status(400).json({ message: `Upload error: ${err.message}` });
-  }
   res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
 

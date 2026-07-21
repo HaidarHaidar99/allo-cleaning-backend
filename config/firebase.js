@@ -27,8 +27,7 @@ if (hasEnvConfig || hasFileConfig) {
     const projectId = hasFileConfig ? require(serviceAccountPath).project_id : process.env.FIREBASE_PROJECT_ID;
 
     admin.initializeApp({
-      credential: credential,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`
+      credential: credential
     });
 
     db = admin.firestore();
