@@ -13,6 +13,7 @@ const defaultSettings = {
   facebook: 'https://facebook.com/allocleaning',
   
   // Home Page hero
+  heroImageBase64: '',
   heroTag: 'Sparkling Clean, Guaranteed',
   heroTitle: 'Professional Cleaning Services for Home & Office',
   heroDescription: 'Experience the joy of a spotless environment. We deliver top-tier, reliable, and eco-friendly cleaning services tailored to your exact needs.',
@@ -29,7 +30,15 @@ const defaultSettings = {
   
   // Contact Page texts
   contactTitle: 'Contact Our Support Team',
-  contactDescription: 'Have questions about our packages or need a custom cleanup quote? Leave us a message below, and our team will reach out shortly!'
+  contactDescription: 'Have questions about our packages or need a custom cleanup quote? Leave us a message below, and our team will reach out shortly!',
+
+  // Feature Flags
+  activePages: {
+    home: true,
+    products: true,
+    services: true,
+    contact: true
+  }
 };
 
 // GET /api/settings - Public
