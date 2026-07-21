@@ -199,48 +199,4 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-const seedDefaultProducts = async () => {
-  try {
-    const snapshot = await db.collection('products').limit(1).get();
-    if (snapshot.empty) {
-      console.log('No products found. Seeding default products...');
-      const defaultProducts = [
-        {
-          name: 'Premium Microfiber Cloths (4-Pack)',
-          category: 'Cleaning Supplies',
-          description: 'Ultra-soft, highly absorbent microfiber cloths suitable for lint-free surface polishing and dusting.',
-          price: 12.99,
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        },
-        {
-          name: 'All-Purpose Organic Spray',
-          category: 'Cleaning Sprays',
-          description: 'Environmentally safe, biodegradable all-purpose cleaner with organic lemon essence extract.',
-          price: 9.50,
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        },
-        {
-          name: 'Sanitizing Disinfectant Wipes',
-          category: 'Cleaning Supplies',
-          description: 'Eliminates 99.9% of bacteria and germs. Suitable for office desks and household surface sanitization.',
-          price: null,
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        }
-      ];
-
-      for (const product of defaultProducts) {
-        await db.collection('products').add(product);
-      }
-      console.log('Default products seeded successfully.');
-    }
-  } catch (error) {
-    console.error('Error seeding default products:', error);
-  }
-};
-
-router.seedDefaultProducts = seedDefaultProducts;
-
 module.exports = router;

@@ -41,16 +41,12 @@ const adminsRouter = require('./routes/admins');
 const settingsRouter = require('./routes/settings');
 
 
-// Seed default admin account and services
+// Seed default admin account only (at least one admin must exist)
 if (authRouter.seedDefaultAdmin) {
   authRouter.seedDefaultAdmin();
 }
-if (servicesRouter.seedDefaultServices) {
-  servicesRouter.seedDefaultServices();
-}
-if (productsRouter.seedDefaultProducts) {
-  productsRouter.seedDefaultProducts();
-}
+// NOTE: No default services or products are seeded.
+// All services and products are managed manually via the admin panel.
 
 
 // Mount routers

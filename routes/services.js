@@ -200,42 +200,4 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-const seedDefaultServices = async () => {
-  try {
-    const snapshot = await db.collection('services').limit(1).get();
-    if (snapshot.empty) {
-      console.log('No services found. Seeding default services...');
-      const defaultServices = [
-        {
-          name: 'Deep Cleaning',
-          description: 'Complete deep cleaning service for all rooms, including kitchen sanitization, bathroom scrubbing, dusting, vacuuming, and floor mopping.',
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        },
-        {
-          name: 'Office Cleaning',
-          description: 'Keep your workspace clean and professional. Dusting desks, emptying trash, vacuuming carpets, and sanitizing common areas.',
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        },
-        {
-          name: 'Window Washing',
-          description: 'Streak-free window washing for residential and commercial buildings. Includes interior and exterior glass cleaning.',
-          imageUrl: '',
-          createdAt: new Date().toISOString()
-        }
-      ];
-
-      for (const service of defaultServices) {
-        await db.collection('services').add(service);
-      }
-      console.log('Default services seeded successfully.');
-    }
-  } catch (error) {
-    console.error('Error seeding default services:', error);
-  }
-};
-
-router.seedDefaultServices = seedDefaultServices;
-
 module.exports = router;
