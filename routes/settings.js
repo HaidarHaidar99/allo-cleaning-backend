@@ -38,7 +38,13 @@ const defaultSettings = {
     products: true,
     services: true,
     contact: true
-  }
+  },
+  
+  // Hero Carousel & Offers
+  heroImage2: '',
+  heroImage3: '',
+  heroMode: 'single', // 'single' or 'carousel'
+  offers: [] // Array of { id: string, text: string, active: boolean }
 };
 
 // GET /api/settings - Public
